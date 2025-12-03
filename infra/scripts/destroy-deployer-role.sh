@@ -89,4 +89,16 @@ az ad app delete --id "$clientId" >/dev/null || true
 echo "Deleting resource group (and contained resources): $resourceGroup ..."
 az group delete --name "$resourceGroup" --yes --no-wait || true
 
+# Delete AKS-managed MC_* resource group if present
+mcGroups=$(az group list --query "[?starts_with(name, 'MC_${resourceGroup}_')].name" -o tsv || true)
+if [[ -n "$mcGroups" ]]; then
+  while IFS= read -r mcRg; do
+    [[ -z "$mcRg" ]] && continue
+    echo "Deleting AKS-managed resource group: $mcRg ..."
+    az group delete --name "$mcRg" --yes --no-wait || true
+  done <<< "$mcGroups"
+else
+  echo "No AKS-managed MC_${resourceGroup}_* resource group found."
+fi
+
 echo "Done."
