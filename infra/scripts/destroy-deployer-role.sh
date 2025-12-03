@@ -77,7 +77,7 @@ fi
 echo "Deleting role assignments..."
 az role assignment delete \
     --assignee-object-id "$spObjectId" \
-    --role "Contributor" \
+    --role "Owner" \
     --resource-group "$resourceGroup" >/dev/null || true
 
 echo "Deleting service principal..."

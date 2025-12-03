@@ -109,8 +109,7 @@ az ad app federated-credential create --id "$appId" --parameters "{
 }"
 
 echo "Assigning Owner on resource group $resourceGroup ..."
-ownerRole="8e3af657-a8ff-443c-a75c-2fe8c4bcb635" # Owner
-az role assignment create --assignee-object-id "$spId" --assignee-principal-type ServicePrincipal --role "$ownerRole" --scope "$rgId" >/dev/null
+az role assignment create --assignee-object-id "$spId" --assignee-principal-type ServicePrincipal --role "Owner" --scope "$rgId" >/dev/null
 
 echo "Done."
 echo "Use these in GitHub Actions secrets/vars:"
