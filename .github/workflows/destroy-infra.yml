@@ -6,7 +6,7 @@ on:
 
 env:
   AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }} # main RG to delete
-  AKS_NAME: ${{ vars.AKS_NAME }}                         # AKS cluster name to locate node RG
+  AKS_NAME: ${{ vars.AKS_NAME }} # AKS cluster name to locate node RG
 
 jobs:
   destroy-infra:
@@ -15,36 +15,17 @@ jobs:
       id-token: write
       contents: read
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Azure login (OIDC)
-      uses: azure/login@v1
-      with:
-        client-id: ${{ secrets.AZURE_CLIENT_ID }}
-        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Azure login (OIDC)
+        uses: azure/login@v1
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-    - name: Resolve AKS node resource group
-      id: aks
-      run: |
-        if [[ -z "${AZURE_RESOURCE_GROUP}" || -z "${AKS_NAME}" ]]; then
-          echo "AZURE_RESOURCE_GROUP and AKS_NAME must be set via repo/organization variables." >&2
-          exit 1
-        fi
-        node_rg=$(az aks show --resource-group "${AZURE_RESOURCE_GROUP}" --name "${AKS_NAME}" --query nodeResourceGroup -o tsv 2>/dev/null || true)
-        echo "node_rg=${node_rg}" >> "$GITHUB_OUTPUT"
-        echo "Node RG: ${node_rg:-<none>}"
-
-    - name: Delete node resource group (if any)
-      if: steps.aks.outputs.node_rg != ''
-      run: |
-        echo "Deleting node resource group: ${NODE_RG}"
-        az group delete --name "${NODE_RG}" --yes --no-wait
-      env:
-        NODE_RG: ${{ steps.aks.outputs.node_rg }}
-
-    - name: Delete main resource group
-      run: |
-        echo "Deleting resource group: ${AZURE_RESOURCE_GROUP}"
-        az group delete --name "${AZURE_RESOURCE_GROUP}" --yes --no-wait
+      - name: Delete main resource group
+        run: |
+          echo "Deleting resource group: ${AZURE_RESOURCE_GROUP}"
+          az group delete --name "${AZURE_RESOURCE_GROUP}" --yes --no-wait
