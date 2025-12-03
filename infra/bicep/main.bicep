@@ -22,15 +22,11 @@ param enableMonitoring bool = true
 @description('Log Analytics retention in days')
 param logAnalyticsRetentionInDays int = 30
 
-var rgName = '${projectName}-${environment}-rg'
+@description('Existing resource group name to deploy into')
+param resourceGroupName string = '${projectName}-${environment}-rg'
 
-resource rg 'Microsoft.Resources/resourceGroups@2023-07-01' = {
-  name: rgName
-  location: location
-  tags: {
-    project: projectName
-    environment: environment
-  }
+resource rg 'Microsoft.Resources/resourceGroups@2023-07-01' existing = {
+  name: resourceGroupName
 }
 
 module aksStack 'modules/aks-infra.bicep' = {

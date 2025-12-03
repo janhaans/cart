@@ -1,0 +1,50 @@
+# .github/workflows/deploy-infra.yml
+name: Deploy Azure Infra
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }} # existing RG
+  PROJECT_NAME: ${{ vars.PROJECT_NAME }}                 # e.g. cart
+  ENVIRONMENT: ${{ vars.ENVIRONMENT }}                   # e.g. dev
+  LOCATION: ${{ vars.LOCATION || 'westeurope' }}
+  NODE_COUNT: ${{ vars.NODE_COUNT || '1' }}
+  NODE_VM_SIZE: ${{ vars.NODE_VM_SIZE || 'Standard_B4ms' }}
+  ENABLE_MONITORING: ${{ vars.ENABLE_MONITORING || 'true' }}
+  LOG_ANALYTICS_RETENTION_DAYS: ${{ vars.LOG_ANALYTICS_RETENTION_DAYS || '30' }}
+
+jobs:
+  deploy-infra:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Azure login (OIDC)
+      uses: azure/login@v1
+      with:
+        client-id: ${{ secrets.AZURE_CLIENT_ID }}
+        tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+        subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+    - name: Deploy Bicep (subscription scope)
+      run: |
+        az deployment sub create \
+          --name "deploy-${{ env.PROJECT_NAME }}-${{ env.ENVIRONMENT }}-${{ github.run_id }}" \
+          --location "${{ env.LOCATION }}" \
+          --template-file infra/bicep/main.bicep \
+          --parameters \
+            projectName="${{ env.PROJECT_NAME }}" \
+            environment="${{ env.ENVIRONMENT }}" \
+            location="${{ env.LOCATION }}" \
+            resourceGroupName="${{ env.AZURE_RESOURCE_GROUP }}" \
+            nodeCount="${{ env.NODE_COUNT }}" \
+            nodeVmSize="${{ env.NODE_VM_SIZE }}" \
+            enableMonitoring="${{ env.ENABLE_MONITORING }}" \
+            logAnalyticsRetentionInDays="${{ env.LOG_ANALYTICS_RETENTION_DAYS }}"

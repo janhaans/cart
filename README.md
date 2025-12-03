@@ -104,3 +104,83 @@ Both Resource Groups are destroyed:
 
 - `cart-dev-rg`
 - `MC_cart-dev-rg_cart-dev-aks_westeurope`
+
+## Deploy the applications
+
+Using ChatGPT the following prompt has been created
+
+```
+You are an expert DevOps engineer specialized in GitHub Actions, Docker, Kubernetes, and Azure Kubernetes Service (AKS).
+
+Context:
+- I have a .NET 8 web application in the `/src` folder of my repository. The name of this application is 'cart'
+- There is already a **Dockerfile** in `/src` that can build the app container.
+- Azure infrastructure (ACR + AKS) is provisioned separately by Bicep. Assume these already exist and are ready:
+  - Azure Container Registry (ACR)
+  - AKS cluster
+- I want a CI/CD pipeline in GitHub Actions that:
+  1) Builds and pushes the container image to ACR.
+  2) Deploys the updated image to my AKS cluster.
+- The web app must be **publicly accessible from the internet** via an HTTP endpoint.
+
+Assumptions (you can reference these as variables/secrets in the workflow):
+- Resource group name: `RG_NAME`
+- AKS cluster name: `AKS_CLUSTER_NAME`
+- ACR name: `ACR_NAME` (so login server is `ACR_NAME.azurecr.io`)
+- Subscription ID: stored in GitHub secret `AZURE_SUBSCRIPTION_ID`
+- Tenant ID: stored in GitHub secret `AZURE_TENANT_ID`
+- Azure Client ID (for OIDC or service principal): stored in GitHub secret `AZURE_CLIENT_ID`
+
+Requirements:
+
+1. **Kubernetes manifests**
+   - Create a Deployment and Service for the `cart` application.
+   - Assume image name pattern: `<ACR_NAME>.azurecr.io/cart:$(TAG)`
+   - Use environment variable for ASP.NET Core environment (e.g. `ASPNETCORE_ENVIRONMENT=Production`).
+   - Expose port 80 in the container.
+   - Use a LoadBalancer Service (or Ingress if you prefer) so the app is reachable from the internet.
+   - Use labels and selectors cleanly (`app: cart`).
+   - Put the manifests under a `kubernetes/` directory with the following files:
+     - `kubernetes/cart-deployment.yaml`
+     - `kubernetes/cart-service.yaml`
+     (and an Ingress manifest if you choose to use Ingress, e.g. `kubernetes/cart-ingress.yaml`)
+
+2. **GitHub Actions workflow**
+   - The workflow file must be called: `.github/workflows/deploy-cart.yml`
+   - Trigger on:
+     - `push` to `main` branch
+     - optional `workflow_dispatch` for manual runs
+   - Steps (high level):
+     1) Check out the code.
+     2) Log in to Azure using `azure/login` with OpenID Connect (use `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` secrets).
+     3) Log in to ACR (using `az acr login` or `docker login` via Azure CLI).
+     4) Build and tag the Docker image from the `/src` directory.
+        - Use a tag that includes the Git SHA (e.g. `${{ github.sha }}`) and also a `latest` tag.
+     5) Push the image to ACR.
+     6) Set the AKS context (using the official `azure/aks-set-context` action or `az aks get-credentials`).
+     7) Deploy to the AKS cluster:
+        - Update the image in the `kubernetes/cart-deployment.yaml` (for example using `kubectl set image` or by applying a manifest that uses an image tag passed as a parameter).
+        - Apply the Kubernetes manifests in the `kubernetes/` directory using `kubectl apply -f kubernetes/`.
+     8) Optionally, print out the external IP or hostname of the Service/Ingress once it becomes available.
+
+   - Use **GitHub secrets** for anything sensitive (no hard-coded credentials).
+   - Use the latest stable major versions of the official Azure GitHub Actions.
+
+3. Output format
+
+   - First, output the Kubernetes manifests as code blocks:
+     - One code block for `kubernetes/cart-deployment.yaml`
+     - One code block for `kubernetes/cart-service.yaml`
+     - (One more for `kubernetes/cart-ingress.yaml` if you add Ingress)
+     - Each file should start with a YAML comment that indicates its relative path, e.g. `# kubernetes/cart-deployment.yaml`
+   - Then, output the GitHub Actions workflow as a single code block:
+     - `.github/workflows/deploy-cart.yml`
+     - Start that file with a YAML comment `# .github/workflows/deploy-cart.yml`
+   - Do NOT include any explanation text outside of comments in the YAML itself. Just give me the files.
+
+Remember:
+- The cluster is AKS on Azure.
+- The registry is ACR.
+- The code is in `/src`, and there is already a Dockerfile there.
+- The goal is a fully automated CI/CD pipeline from GitHub to AKS.
+```

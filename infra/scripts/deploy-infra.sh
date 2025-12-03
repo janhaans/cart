@@ -4,7 +4,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: ./deploy.sh -p <projectName> [-e <environment>] [-l <location>] [-s <subscriptionId>] [-n <deploymentName>]
+Usage: ./deploy-infra.sh -p <projectName> [-e <environment>] [-l <location>] [-s <subscriptionId>] [-n <deploymentName>]
 
 Parameters:
   -p  Project name (required)
@@ -75,3 +75,13 @@ az deployment sub create \
   --parameters projectName="${project}" environment="${environment}" location="${location}"
 
 echo "Deployment complete."
+
+# Capture outputs for chaining into OIDC bootstrap if requested
+rgName="$(az deployment sub show --name "${deploymentName}" --query "properties.outputs.resourceGroupName.value" -o tsv)"
+acrLoginServer="$(az deployment sub show --name "${deploymentName}" --query "properties.outputs.acrLoginServer.value" -o tsv)"
+aksName="$(az deployment sub show --name "${deploymentName}" --query "properties.outputs.aksName.value" -o tsv)"
+
+echo "Outputs:"
+echo "  Resource Group: ${rgName}"
+echo "  ACR Login Server: ${acrLoginServer}"
+echo "  AKS Name: ${aksName}"
