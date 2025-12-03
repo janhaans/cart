@@ -6,7 +6,6 @@ on:
 
 env:
   AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }} # main RG to delete
-  AKS_NAME: ${{ vars.AKS_NAME }} # AKS cluster name to locate node RG
 
 jobs:
   destroy-infra:

@@ -4,27 +4,24 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: ./destroy-deployer-role.sh -c <clientId> [-g <resourceGroup>] [-s <subscriptionId>] [-y]
+Usage: ./destroy-deployer-role.sh -c <clientId> [-s <subscriptionId>] [-y]
 
 Required:
   -c  Application (client) ID of the App/Service Principal to delete
 
 Optional:
-  -g  Resource group to delete (default: cart-dev-rg)
   -s  Subscription ID or name (defaults to current)
   -y  Do not prompt for confirmation
 EOF
 }
 
 clientId=""
-resourceGroup="cart-dev-rg"
 subscriptionId=""
 assumeYes=false
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     -c) clientId="$2"; shift 2 ;;
-    -g) resourceGroup="$2"; shift 2 ;;
     -s) subscriptionId="$2"; shift 2 ;;
     -y) assumeYes=true; shift ;;
     -h|--help) usage; exit 0 ;;
@@ -50,6 +47,8 @@ fi
 
 if [[ -n "$subscriptionId" ]]; then
   az account set --subscription "$subscriptionId"
+else
+  subscriptionId="$(az account show --query id -o tsv)"
 fi
 
 spObjectId="$(az ad sp show --id "$clientId" --query id -o tsv 2>/dev/null || true)"
@@ -60,11 +59,10 @@ fi
 
 tenantId="$(az account show --query tenantId -o tsv)"
 
-echo "About to remove role assignments, service principal, app, and resource group:"
+echo "About to remove role assignments, service principal and app:"
 echo "  Client ID:   $clientId"
 echo "  SP ObjectId: $spObjectId"
 echo "  Tenant ID:   $tenantId"
-echo "  Resource RG: $resourceGroup"
 
 if [[ "$assumeYes" != true ]]; then
   read -r -p "Proceed? [y/N] " reply
@@ -75,30 +73,20 @@ if [[ "$assumeYes" != true ]]; then
 fi
 
 echo "Deleting role assignments..."
-az role assignment delete \
-    --assignee-object-id "$spObjectId" \
-    --role "Owner" \
-    --resource-group "$resourceGroup" >/dev/null || true
+assignments=$(az role assignment list --assignee "$spObjectId" --query "[].id" -o tsv || true)
+if [[ -n "$assignments" ]]; then
+  while IFS= read -r ra_id; do
+    [[ -z "$ra_id" ]] && continue
+    az role assignment delete --ids "$ra_id" >/dev/null || true
+  done <<< "$assignments"
+else
+  echo "  No role assignments found for this principal."
+fi
 
 echo "Deleting service principal..."
 az ad sp delete --id "$clientId" >/dev/null || true
 
 echo "Deleting app registration..."
 az ad app delete --id "$clientId" >/dev/null || true
-
-echo "Deleting resource group (and contained resources): $resourceGroup ..."
-az group delete --name "$resourceGroup" --yes --no-wait || true
-
-# Delete AKS-managed MC_* resource group if present
-mcGroups=$(az group list --query "[?starts_with(name, 'MC_${resourceGroup}_')].name" -o tsv || true)
-if [[ -n "$mcGroups" ]]; then
-  while IFS= read -r mcRg; do
-    [[ -z "$mcRg" ]] && continue
-    echo "Deleting AKS-managed resource group: $mcRg ..."
-    az group delete --name "$mcRg" --yes --no-wait || true
-  done <<< "$mcGroups"
-else
-  echo "No AKS-managed MC_${resourceGroup}_* resource group found."
-fi
 
 echo "Done."

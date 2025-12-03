@@ -1,5 +1,5 @@
 // main.bicep
-targetScope = 'resourceGroup'
+targetScope = 'subscription'
 
 @description('Azure region for all resources')
 param location string = 'westeurope'
@@ -22,8 +22,21 @@ param enableMonitoring bool = true
 @description('Log Analytics retention in days')
 param logAnalyticsRetentionInDays int = 30
 
+@description('Resource group name to create and deploy into')
+param resourceGroupName string = '${projectName}-${environment}-rg'
+
+resource rg 'Microsoft.Resources/resourceGroups@2023-07-01' = {
+  name: resourceGroupName
+  location: location
+  tags: {
+    project: projectName
+    environment: environment
+  }
+}
+
 module aksStack 'modules/aks-infra.bicep' = {
   name: 'aksStack'
+  scope: rg
   params: {
     location: location
     projectName: projectName
@@ -35,8 +48,8 @@ module aksStack 'modules/aks-infra.bicep' = {
   }
 }
 
-output resourceGroupName string = resourceGroup().name
-output resourceGroupId string = resourceGroup().id
+output resourceGroupName string = rg.name
+output resourceGroupId string = rg.id
 output aksName string = aksStack.outputs.aksName
 output aksResourceId string = aksStack.outputs.aksResourceId
 output aksFqdn string = aksStack.outputs.aksFqdn

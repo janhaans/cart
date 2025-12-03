@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Creates a GitHub Actions App/Service Principal with a GitHub OIDC federated credential
-# and assigns Contributor on a target resource group (default: cart-dev-rg).
+# and assigns Owner role on the subscription.
 set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: ./grant-deployer-role.sh -o <githubOrg> -r <githubRepo> [-b <branch>] [-g <resourceGroup>] [-l <location>] [-s <subscriptionId>] [-n <appDisplayName>] [-y]
+Usage: ./grant-deployer-role.sh -o <githubOrg> -r <githubRepo> [-b <branch>] [-l <location>] [-s <subscriptionId>] [-n <appDisplayName>] [-y]
 
 Required:
   -o  GitHub organization/owner
@@ -13,8 +13,6 @@ Required:
 
 Optional:
   -b  Git branch for federated credential subject (default: main)
-  -g  Resource group scope for Contributor assignment (default: cart-dev-rg)
-  -l  Location to create the resource group if it does not exist (default: westeurope)
   -s  Subscription ID or name (defaults to current)
   -n  App Registration display name (default: <org>-<repo>-gha-oidc)
   -y  Auto-confirm without prompt
@@ -24,8 +22,6 @@ EOF
 githubOrg="janhaans"
 githubRepo="cart"
 branch="main"
-resourceGroup="cart-dev-rg"
-location="westeurope"
 subscriptionId=""
 appDisplayName=""
 assumeYes=false
@@ -35,8 +31,6 @@ while [[ $# -gt 0 ]]; do
     -o) githubOrg="$2"; shift 2 ;;
     -r) githubRepo="$2"; shift 2 ;;
     -b) branch="$2"; shift 2 ;;
-    -g) resourceGroup="$2"; shift 2 ;;
-    -l) location="$2"; shift 2 ;;
     -s) subscriptionId="$2"; shift 2 ;;
     -n) appDisplayName="$2"; shift 2 ;;
     -y) assumeYes=true; shift ;;
@@ -67,13 +61,6 @@ fi
 
 tenantId="$(az account show --query tenantId -o tsv)"
 subscriptionId="$(az account show --query id -o tsv)"
-rgId="$(az group show --name "$resourceGroup" --query id -o tsv 2>/dev/null || true)"
-
-if [[ -z "$rgId" ]]; then
-  echo "Resource group '$resourceGroup' not found. Creating in location '$location'..."
-  az group create --name "$resourceGroup" --location "$location" >/dev/null
-  rgId="$(az group show --name "$resourceGroup" --query id -o tsv)"
-fi
 
 subject="repo:${githubOrg}/${githubRepo}:ref:refs/heads/${branch}"
 appDisplayName="${appDisplayName:-${githubOrg}-${githubRepo}-gha-oidc}"
@@ -82,7 +69,6 @@ echo "About to create App Registration and federated credential:"
 echo "  App display name:    $appDisplayName"
 echo "  Tenant ID:           $tenantId"
 echo "  Subscription ID:     $subscriptionId"
-echo "  Resource Group:      $resourceGroup"
 echo "  GitHub subject:      $subject"
 
 if [[ "$assumeYes" != true ]]; then
@@ -108,8 +94,13 @@ az ad app federated-credential create --id "$appId" --parameters "{
   \"audiences\": [\"api://AzureADTokenExchange\"]
 }"
 
-echo "Assigning Owner on resource group $resourceGroup ..."
-az role assignment create --assignee-object-id "$spId" --assignee-principal-type ServicePrincipal --role "Owner" --scope "$rgId" >/dev/null
+echo "Assigning Owner on subscription $subscriptionId ..."
+az role assignment create \
+  --assignee-object-id "$spId" \
+  --assignee-principal-type ServicePrincipal \
+  --role "Owner" \
+  --scope "/subscriptions/$subscriptionId" \
+  >/dev/null
 
 echo "Done."
 echo "Use these in GitHub Actions secrets/vars:"
