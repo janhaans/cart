@@ -33,17 +33,16 @@ jobs:
         tenant-id: ${{ secrets.AZURE_TENANT_ID }}
         subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-    - name: Deploy Bicep (subscription scope)
+    - name: Deploy Bicep (resource group scope)
       run: |
-        az deployment sub create \
+        az deployment group create \
+          --resource-group "${{ env.AZURE_RESOURCE_GROUP }}" \
           --name "deploy-${{ env.PROJECT_NAME }}-${{ env.ENVIRONMENT }}-${{ github.run_id }}" \
-          --location "${{ env.LOCATION }}" \
           --template-file infra/bicep/main.bicep \
           --parameters \
             projectName="${{ env.PROJECT_NAME }}" \
             environment="${{ env.ENVIRONMENT }}" \
             location="${{ env.LOCATION }}" \
-            resourceGroupName="${{ env.AZURE_RESOURCE_GROUP }}" \
             nodeCount="${{ env.NODE_COUNT }}" \
             nodeVmSize="${{ env.NODE_VM_SIZE }}" \
             enableMonitoring="${{ env.ENABLE_MONITORING }}" \
